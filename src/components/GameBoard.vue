@@ -65,7 +65,6 @@
 
         <!-- Contrôles -->
         <Controls
-          v-if="currentPlayer"
           :player-name="currentPlayer.name"
           :player-tokens="currentPlayer.jetons"
           :is-a-i="currentPlayer.isAI"
@@ -98,9 +97,6 @@
           <span>{{ t('game.seq_hint') }}</span>
         </div>
       </aside>
-      <div class="text-red-500">
-        DEBUG: {{ currentPlayer }}
-      </div>
 
     </main>
   </div>
