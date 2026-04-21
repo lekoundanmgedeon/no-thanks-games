@@ -8,7 +8,7 @@
 
     <Transition name="screen-fade" mode="out-in">
 
-      <!-- ── Choix du mode ── -->
+      <!-- ── Choix du mode (Solo / Réseau) ── -->
       <ModeSelect
         v-if="appPhase === 'mode-select'"
         key="mode-select"
@@ -16,7 +16,10 @@
         @network="handleNetworkMode"
       />
 
-      <!-- ── SETUP SOLO ── -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- MODE SOLO                                                          -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+
       <SetupScreen
         v-else-if="appPhase === 'solo-setup'"
         key="solo-setup"
@@ -25,39 +28,28 @@
         @resume="handleSoloResume"
       />
 
-      <!-- ── JEU SOLO ── -->
-      <template v-else-if="appPhase === 'solo-playing'" key="solo-playing">
+      <GameBoard
+        v-else-if="appPhase === 'solo-playing' && soloCurrentCard !== null"
+        key="solo-playing"
+        :players="soloPlayers"
+        :deck="soloDeck"
+        :current-card="soloCurrentCard"
+        :tokens-on-card="soloTokensOnCard"
+        :current-player-index="soloCurrentPlayerIndex"
+        :current-player="soloCurrentPlayer"
+        :last-action="soloLastAction"
+        :card-anim-key="soloCardAnimKey"
+        :no-token-shake="soloNoTokenShake"
+        :live-scores="soloLiveScores"
+        :timer-enabled="timerEnabled"
+        :remaining="timerRemaining"
+        :progress="timerProgress"
+        :urgency="timerUrgency"
+        @take="handleSoloTake"
+        @refuse="handleSoloRefuse"
+        @quit="showQuitDialog = true"
+      />
 
-        <!-- Jeu prêt -->
-        <GameBoard
-          v-if="soloCurrentCard !== null"
-          :players="soloPlayers"
-          :deck="soloDeck"
-          :current-card="soloCurrentCard"
-          :tokens-on-card="soloTokensOnCard"
-          :current-player-index="soloCurrentPlayerIndex"
-          :current-player="soloCurrentPlayer"
-          :last-action="soloLastAction"
-          :card-anim-key="soloCardAnimKey"
-          :no-token-shake="soloNoTokenShake"
-          :live-scores="soloLiveScores"
-          :timer-enabled="timerEnabled"
-          :remaining="timerRemaining"
-          :progress="timerProgress"
-          :urgency="timerUrgency"
-          @take="handleSoloTake"
-          @refuse="handleSoloRefuse"
-          @quit="showQuitDialog = true"
-        />
-
-        <!-- Loader -->
-        <div v-else class="min-h-screen flex items-center justify-center">
-          <div class="token large animate-pulse" />
-        </div>
-
-      </template>
-
-      <!-- ── FIN SOLO ── -->
       <ScoreScreen
         v-else-if="appPhase === 'solo-finished'"
         key="solo-finished"
@@ -66,7 +58,10 @@
         @menu="appPhase = 'mode-select'"
       />
 
-      <!-- ── LOBBY RÉSEAU ── -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+      <!-- MODE RÉSEAU                                                        -->
+      <!-- ══════════════════════════════════════════════════════════════════ -->
+
       <NetworkLobby
         v-else-if="appPhase === 'network-lobby'"
         key="network-lobby"
@@ -88,39 +83,29 @@
         @back="appPhase = 'mode-select'"
       />
 
-      <!-- ── JEU RÉSEAU ── -->
-      <template v-else-if="appPhase === 'network-playing'" key="network-playing">
+      <NetworkGameBoard
+        v-else-if="appPhase === 'network-playing' && netGameState?.currentCard != null"
+        key="network-playing"
+        :my-player-name="netMyPlayerName"
+        :room-code="netRoomCode"
+        :is-my-turn="netIsMyTurn"
+        :my-player="netMyPlayer"
+        :players="netGameState.players"
+        :current-card="netGameState.currentCard"
+        :tokens-on-card="netGameState.tokensOnCard"
+        :deck-size="netGameState.deckSize"
+        :cards-remaining="netGameState.cardsRemaining"
+        :current-player-name="netGameState.currentPlayerName"
+        :last-action="netGameState.lastAction"
+        :card-anim-key="netCardAnimKey"
+        :no-token-shake="netNoTokenShake"
+        :action-error="netActionError"
+        :notification="netNotification"
+        @take="netPrendreCarte"
+        @refuse="netRefuserCarte"
+        @leave="handleNetLeave"
+      />
 
-        <NetworkGameBoard
-          v-if="netGameState?.currentCard != null"
-          :my-player-name="netMyPlayerName"
-          :room-code="netRoomCode"
-          :is-my-turn="netIsMyTurn"
-          :my-player="netMyPlayer"
-          :players="netGameState.players"
-          :current-card="netGameState.currentCard"
-          :tokens-on-card="netGameState.tokensOnCard"
-          :deck-size="netGameState.deckSize"
-          :cards-remaining="netGameState.cardsRemaining"
-          :current-player-name="netGameState.currentPlayerName"
-          :last-action="netGameState.lastAction"
-          :card-anim-key="netCardAnimKey"
-          :no-token-shake="netNoTokenShake"
-          :action-error="netActionError"
-          :notification="netNotification"
-          @take="netPrendreCarte"
-          @refuse="netRefuserCarte"
-          @leave="handleNetLeave"
-        />
-
-        <!-- Loader réseau -->
-        <div v-else class="min-h-screen flex items-center justify-center">
-          <div class="token large animate-pulse" />
-        </div>
-
-      </template>
-
-      <!-- ── FIN RÉSEAU ── -->
       <ScoreScreen
         v-else-if="appPhase === 'network-finished'"
         key="network-finished"
@@ -129,14 +114,14 @@
         @menu="appPhase = 'mode-select'"
       />
 
-      <!-- Fallback -->
+      <!-- Fallback loading -->
       <div v-else key="loading" class="min-h-screen flex items-center justify-center">
         <div class="token large animate-pulse" />
       </div>
 
     </Transition>
 
-    <!-- Dialogue Quit -->
+    <!-- Dialogue de sortie (solo) -->
     <Transition name="dialog-fade">
       <div
         v-if="showQuitDialog"
@@ -161,21 +146,28 @@
 <script setup>
 import { ref, watch, onUnmounted, onMounted } from 'vue'
 
-import ModeSelect from './components/ModeSelect.vue'
-import SetupScreen from './components/SetupScreen.vue'
-import GameBoard from './components/GameBoard.vue'
-import ScoreScreen from './components/ScoreScreen.vue'
-import NetworkLobby from './components/NetworkLobby.vue'
-import NetworkGameBoard from './components/NetworkGameBoard.vue'
+// ── Composants ──
+import ModeSelect        from './components/ModeSelect.vue'
+import SetupScreen       from './components/SetupScreen.vue'
+import GameBoard         from './components/GameBoard.vue'
+import ScoreScreen       from './components/ScoreScreen.vue'
+import NetworkLobby      from './components/NetworkLobby.vue'
+import NetworkGameBoard  from './components/NetworkGameBoard.vue'
 
-import { useGame } from './composables/useGame.js'
-import { useTimer } from './composables/useTimer.js'
-import { useI18n } from './composables/useI18n.js'
+// ── Composables ──
+import { useGame }        from './composables/useGame.js'
+import { useTimer }       from './composables/useTimer.js'
+import { useI18n }        from './composables/useI18n.js'
 import { useNetworkGame } from './composables/useNetworkGame.js'
 
 const { t } = useI18n()
+
+// ─── Phase globale de l'application ───────────────────────────────────────────
+// 'mode-select' | 'solo-setup' | 'solo-playing' | 'solo-finished'
+// | 'network-lobby' | 'network-playing' | 'network-finished'
 const appPhase = ref('mode-select')
 
+// ─── MODE SOLO ────────────────────────────────────────────────────────────────
 const {
   phase: soloPhase,
   players: soloPlayers, deck: soloDeck,
@@ -190,7 +182,7 @@ const {
 } = useGame()
 
 const { timerEnabled, remaining: timerRemaining, progress: timerProgress,
-  urgency: timerUrgency, startTimer, stopTimer, configure } = useTimer()
+        urgency: timerUrgency, startTimer, stopTimer, configure } = useTimer()
 
 const hasSave = ref(false)
 const showQuitDialog = ref(false)
@@ -200,41 +192,41 @@ onMounted(() => {
 })
 
 watch(soloPhase, v => {
-  if (v === 'playing') appPhase.value = 'solo-playing'
+  if (v === 'playing')  appPhase.value = 'solo-playing'
   if (v === 'finished') appPhase.value = 'solo-finished'
 })
+
+watch(soloCurrentPlayerIndex, () => {
+  if (soloPhase.value !== 'playing') return
+  if (soloCurrentPlayer.value?.isAI) { stopTimer(); return }
+  startTimer(() => soloPrendreCarte())
+})
+
+watch(soloCurrentCard, v => {
+  if (v !== null && soloPhase.value === 'playing' && !soloCurrentPlayer.value?.isAI)
+    startTimer(() => soloPrendreCarte())
+}, { once: false })
+
+watch(soloPhase, v => { if (v !== 'playing') stopTimer() })
+onUnmounted(() => stopTimer())
 
 function handleSoloStart(names, isAIList, options = {}) {
   configure(options.timerEnabled ?? false, options.timerDuration ?? 30)
   initGame(names, Array.isArray(isAIList) ? isAIList : [])
   hasSave.value = false
 }
-
 function handleSoloResume() {
   const ok = loadFromStorage()
   if (!ok) hasSave.value = false
 }
-
 function handleSoloRestart() {
-  if (!soloPlayers.value.length) {
-    appPhase.value = 'mode-select'
-    return
-  }
+  if (!soloPlayers.value.length) { appPhase.value = 'mode-select'; return }
   const names = soloPlayers.value.map(p => p.name)
-  const isAI = soloPlayers.value.map(p => p.isAI)
+  const isAI  = soloPlayers.value.map(p => p.isAI)
   initGame(names, isAI)
 }
-
-function handleSoloTake() {
-  stopTimer()
-  soloPrendreCarte()
-}
-
-function handleSoloRefuse() {
-  stopTimer()
-  soloRefuserCarte()
-}
-
+function handleSoloTake()   { stopTimer(); soloPrendreCarte() }
+function handleSoloRefuse() { stopTimer(); soloRefuserCarte() }
 function doQuit() {
   showQuitDialog.value = false
   stopTimer()
@@ -243,32 +235,62 @@ function doQuit() {
   appPhase.value = 'mode-select'
 }
 
+// ─── MODE RÉSEAU ──────────────────────────────────────────────────────────────
+const {
+  connect: netConnect,
+  connected: netConnected, connecting: netConnecting, socketError: netSocketError,
+  phase: netPhase, roomCode: netRoomCode, isHost: netIsHost,
+  myPlayerName: netMyPlayerName,
+  gameState: netGameState, myPlayer: netMyPlayer, isMyTurn: netIsMyTurn,
+  ranking: netRanking,
+  cardAnimKey: netCardAnimKey, noTokenShake: netNoTokenShake,
+  notification: netNotification, actionError: netActionError,
+  createRoom: netCreateRoom, joinRoom: netJoinRoom, startGame: netStartGame,
+  prendreCarte: netPrendreCarte, refuserCarte: netRefuserCarte,
+  leaveRoom: netLeaveRoom,
+} = useNetworkGame()
+
+// Synchroniser la phase réseau avec appPhase
+watch(netPhase, v => {
+  if (v === 'playing')  appPhase.value = 'network-playing'
+  if (v === 'finished') appPhase.value = 'network-finished'
+})
+
+// Quand le gameState passe en lobby → revenir au lobby si on était en jeu
+watch(netGameState, state => {
+  if (!state) return
+  if (state.phase === 'playing' && appPhase.value === 'network-lobby')
+    appPhase.value = 'network-playing'
+})
+
 function handleNetworkMode() {
   appPhase.value = 'network-lobby'
+  // null = connexion relative → fonctionne avec proxy Vite en dev ET en prod
+  netConnect(null)
 }
 
-function handleNetConnect(url) {}
+function handleNetConnect(url) {
+  netConnect(url)
+}
+
 function handleNetLeave() {
+  netLeaveRoom()
   appPhase.value = 'mode-select'
 }
 
+// ─── Déco ─────────────────────────────────────────────────────────────────────
 function floatingTokenStyle(i) {
   const p = [
-    { left: '5%', top: '15%' },
-    { left: '88%', top: '8%' },
-    { left: '15%', top: '75%' },
-    { left: '92%', top: '60%' },
-    { left: '45%', top: '5%' },
-    { left: '70%', top: '90%' },
-    { left: '30%', top: '92%' },
-    { left: '58%', top: '50%' },
-  ][(i - 1) % 8]
-
-  return {
-    left: p.left,
-    top: p.top,
-    animation: `float 8s ease-in-out infinite`
-  }
+    {left:'5%',top:'15%',d:'0s',dur:'7s'},
+    {left:'88%',top:'8%',d:'1.2s',dur:'9s'},
+    {left:'15%',top:'75%',d:'0.5s',dur:'8s'},
+    {left:'92%',top:'60%',d:'2s',dur:'6s'},
+    {left:'45%',top:'5%',d:'0.8s',dur:'10s'},
+    {left:'70%',top:'90%',d:'1.5s',dur:'7.5s'},
+    {left:'30%',top:'92%',d:'3s',dur:'8.5s'},
+    {left:'58%',top:'50%',d:'2.5s',dur:'9.5s'},
+  ][(i-1)%8]
+  return {left:p.left,top:p.top,animation:`float ${p.dur} ease-in-out ${p.d} infinite`}
 }
 </script>
 

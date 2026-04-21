@@ -1,10 +1,10 @@
-# 🎴 No Thanks! — Solo + Multijoueur réseau
+# 🎴 No Thanks! — Solo + Multiplayer Network
 
-Implémentation complète du jeu de société **No Thanks!** en Vue 3 + Socket.IO.
+Complete implementation of the board game **No Thanks!** in Vue 3 + Socket.IO.
 
 ---
 
-## 🚀 Installation rapide
+## 🚀 Quick Installation
 
 ```bash
 tar -xzf no-thanks-game.tar.gz
@@ -14,42 +14,53 @@ npm install
 
 ---
 
-## 🎮 Modes de jeu
+## 🎮 Game Modes
 
-### Mode Solo (navigateur uniquement)
+### Solo Mode (browser only)
+
 ```bash
-npm run dev         # Développement : http://localhost:5173
+npm run dev         # Development: http://localhost:5173
 ```
-Jouez localement dans votre navigateur. Supporte les IA et le timer.
+Play locally in your browser. Supports AI and timer.
 
 ---
 
-### Mode Multijoueur réseau
+### Multiplayer Network Mode
 
-#### 1. Builder le frontend
+#### 1. Build the frontend
+
 ```bash
 npm run build
 ```
 
-#### 2. Lancer le serveur
+#### 2. Start the server
+
 ```bash
 npm run server
-# ou pour auto-reload en dev :
+# or for auto-reload in dev:
 npm run dev:server
 ```
 
-Le serveur démarre sur le port **3000** et affiche :
+#### 3. Quick launch (production mode)
+
+```bash
+npm run build && npm run server
 ```
-🎴  No Thanks! — Serveur multijoueur
+
+The server starts on port **3000** and displays:
+
+```
+🎴  No Thanks! — Multiplayer Server
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Local   : http://localhost:3000
-   Réseau  : http://192.168.1.42:3000    ← autres joueurs utilisent cette URL
+   Network : http://192.168.1.42:3000    ← other players use this URL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-#### 3. Jouer sur réseau local
-- **Hôte** : accède à `http://localhost:3000`, crée une partie
-- **Autres joueurs** : accèdent à `http://192.168.1.42:3000` (IP affichée dans le terminal), rejoignent avec le code à 4 lettres
+#### 3. Play on local network
+
+- **Host**: access `http://localhost:3000`, create a game
+- **Other players**: access `http://192.168.1.42:3000` (IP displayed in terminal), join with the 4-letter code
 
 ---
 
@@ -58,79 +69,79 @@ Le serveur démarre sur le port **3000** et affiche :
 ```
 no-thanks/
 ├── server/
-│   ├── index.cjs          # Serveur Express + Socket.IO
-│   └── gameLogic.cjs      # Logique pure du jeu (source de vérité)
+│   ├── index.cjs          # Express Server + Socket.IO
+│   └── gameLogic.cjs      # Pure game logic (source of truth)
 │
 ├── src/
-│   ├── App.vue            # Orchestrateur : solo ↔ réseau
+│   ├── App.vue            # Orchestrator: solo ↔ network
 │   ├── components/
-│   │   ├── ModeSelect.vue       # Choix solo / réseau
-│   │   ├── SetupScreen.vue      # Config partie solo
-│   │   ├── GameBoard.vue        # Plateau solo
-│   │   ├── CardPile.vue         # Carte centrale
-│   │   ├── Controls.vue         # Boutons + timer
-│   │   ├── PlayerPanel.vue      # Panneau joueur
-│   │   ├── ScoreScreen.vue      # Résultats
-│   │   ├── NetworkLobby.vue     # Lobby réseau (créer/rejoindre)
-│   │   └── NetworkGameBoard.vue # Plateau réseau
+│   │   ├── ModeSelect.vue       # Choose solo / network
+│   │   ├── SetupScreen.vue      # Solo game setup
+│   │   ├── GameBoard.vue        # Solo board
+│   │   ├── CardPile.vue         # Central card
+│   │   ├── Controls.vue         # Buttons + timer
+│   │   ├── PlayerPanel.vue      # Player panel
+│   │   ├── ScoreScreen.vue      # Results
+│   │   ├── NetworkLobby.vue     # Network lobby (create/join)
+│   │   └── NetworkGameBoard.vue # Network board
 │   │
 │   └── composables/
-│       ├── useGame.js       # Logique solo (Vue réactive)
-│       ├── useNetworkGame.js # Logique réseau (Socket.IO)
-│       ├── useSocket.js     # Singleton connexion Socket.IO
-│       ├── useTimer.js      # Timer de tour
-│       └── useI18n.js       # Traductions FR/EN
+│       ├── useGame.js       # Solo logic (Vue reactive)
+│       ├── useNetworkGame.js # Network logic (Socket.IO)
+│       ├── useSocket.js     # Singleton Socket.IO connection
+│       ├── useTimer.js      # Turn timer
+│       └── useI18n.js       # Translations FR/EN
 ```
 
 ---
 
-## 🔌 Événements Socket.IO
+## 🔌 Socket.IO Events
 
-### Client → Serveur
+### Client → Server
 
-| Événement     | Payload                          | Description                    |
-|---------------|----------------------------------|--------------------------------|
-| `room:create` | `{ playerName }`                 | Créer une partie (devient hôte)|
-| `room:join`   | `{ roomCode, playerName }`       | Rejoindre avec un code         |
-| `room:start`  | *(aucun)*                        | Lancer (hôte seulement)        |
-| `game:take`   | *(aucun)*                        | Prendre la carte               |
-| `game:refuse` | *(aucun)*                        | Dire No Thanks!                |
+| Event          | Payload                          | Description                    |
+|----------------|----------------------------------|--------------------------------|
+| `room:create`  | `{ playerName }`                 | Create a game (becomes host)   |
+| `room:join`    | `{ roomCode, playerName }`       | Join with a code               |
+| `room:start`   | *(none)*                         | Start (host only)              |
+| `game:take`    | *(none)*                         | Take the card                  |
+| `game:refuse`  | *(none)*                         | Say No Thanks!                 |
 
-### Serveur → Client(s)
+### Server → Client(s)
 
-| Événement            | Destinataire | Description                        |
-|----------------------|--------------|------------------------------------|
-| `room:created`       | 1 client     | Confirmation de création           |
-| `room:joined`        | 1 client     | Confirmation de rejoindre          |
-| `game:state`         | Toute la room| État complet après chaque action   |
-| `game:finished`      | Toute la room| Classement final                   |
-| `game:notification`  | Toute la room| Infos (join, disconnect, etc.)     |
-| `error:action`       | 1 client     | Erreur d'action invalide           |
+| Event               | Recipient    | Description                        |
+|---------------------|--------------|------------------------------------|
+| `room:created`      | 1 client     | Creation confirmation              |
+| `room:joined`       | 1 client     | Join confirmation                  |
+| `game:state`        | Entire room  | Complete state after each action   |
+| `game:finished`     | Entire room  | Final ranking                      |
+| `game:notification` | Entire room  | Info (join, disconnect, etc.)      |
+| `error:action`      | 1 client     | Invalid action error               |
 
 ---
 
-## 🛡 Sécurité anti-triche
+## 🛡 Anti-cheat Security
 
-- Le **serveur est la seule source de vérité** : le client ne peut pas modifier l'état
-- Chaque action vérifie le **socketId** du joueur → impossible de jouer à la place de quelqu'un
-- Le serveur **n'expose jamais** les `socketId` aux autres clients ni les cartes retirées
-- Les cartes restantes dans la pioche ne sont pas transmises (seulement le nombre)
+- The **server is the only source of truth**: the client cannot modify the state
+- Each action verifies the player's **socketId** → impossible to play for someone else
+- The server **never exposes** `socketId` to other clients or removed cards
+- Remaining cards in the deck are not transmitted (only the count)
 
 ---
 
 ## 🔧 Configuration
 
-| Variable           | Défaut | Description              |
-|--------------------|--------|--------------------------|
-| `PORT`             | `3000` | Port du serveur          |
-| `TOKENS_PER_PLAYER`| `11`   | Jetons par joueur        |
-| `CARDS_REMOVED`    | `9`    | Cartes retirées au début |
+| Variable           | Default | Description              |
+|--------------------|---------|--------------------------|
+| `PORT`             | `3000`  | Server port              |
+| `TOKENS_PER_PLAYER`| `11`    | Tokens per player        |
+| `CARDS_REMOVED`    | `9`     | Cards removed at start   |
 
-Modifier `server/gameLogic.cjs` pour changer les règles.
+Modify `server/gameLogic.cjs` to change the rules.
 
 ---
 
-## 📱 Accès mobile
+## 📱 Mobile Access
 
-Le jeu est responsive. Sur mobile, accédez à l'IP réseau depuis Safari/Chrome.  
-Assurez-vous que le pare-feu autorise le port 3000.
+The game is responsive. On mobile, access the network IP from Safari/Chrome.  
+Make sure the firewall allows port 3000.
