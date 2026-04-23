@@ -154,6 +154,20 @@
             </Transition>
           </div>
 
+          <!-- Add Bot (hôte) -->
+          <div class="min-w-[120px]">
+            <label class="text-xs text-felt-light block mb-1.5">Bots</label>
+            <div class="flex items-center gap-2">
+              <button class="px-2 py-1 rounded-lg border text-xs font-semibold"
+                :class="'bg-felt/50 border-token-gold/20 text-felt-light hover:border-token-gold/40'"
+                @click="$emit('add-bot', null)"
+                :disabled="players.filter(p => p.isBot).length >= 4 || players.length >= 7">
+                ➕ Add Bot
+              </button>
+              <div class="text-xs text-felt-light">{{ players.filter(p => p.isBot).length }} / 4</div>
+            </div>
+          </div>
+
         </div>
       </div>
 

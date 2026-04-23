@@ -41,6 +41,7 @@
         @join="netJoinRoom"
         @spectate="handleSpectate"
         @start="netStartGame"
+        @add-bot="netAddBot"
         @options="netSetOptions"
         @leave="handleNetLeave"
         @back="appPhase = 'mode-select'" />
@@ -53,6 +54,7 @@
         :deck-size="netGameState.deckSize" :cards-remaining="netGameState.cardsRemaining"
         :current-player-name="netGameState.currentPlayerName"
         :last-action="netGameState.lastAction" :card-anim-key="netCardAnimKey"
+        :phase="netPhase"
         :no-token-shake="netNoTokenShake" :action-error="netActionError" :notification="netNotification"
         :timer-enabled="netTimerEnabled" :timer-remaining="netTimerRemaining"
         :timer-progress="netTimerProgress" :timer-urgency="netTimerUrgency"
@@ -184,12 +186,12 @@ const {
   timerEnabled: netTimerEnabled, timerRemaining: netTimerRemaining,
   timerProgress: netTimerProgress, timerUrgency: netTimerUrgency,
   createRoom: netCreateRoom, joinRoom: netJoinRoom, spectateRoom: netSpectateRoom,
-  setOptions: netSetOptions, startGame: netStartGame,
+  setOptions: netSetOptions, startGame: netStartGame, addBot: netAddBot,
   prendreCarte: netPrendreCarte, refuserCarte: netRefuserCarte, leaveRoom: netLeaveRoom,
 } = useNetworkGame()
 
 watch(netPhase, v => {
-  if (v === 'playing')  appPhase.value = netIsSpectator.value ? 'spectator' : 'network-playing'
+  if (v === 'playing' || v === 'paused')  appPhase.value = netIsSpectator.value ? 'spectator' : 'network-playing'
   if (v === 'finished') appPhase.value = netIsSpectator.value ? 'spectator'  : 'network-finished'
 })
 watch(netGameState, state => {

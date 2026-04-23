@@ -12,6 +12,8 @@ const {
   takeCard, refuseCard,
   handleDisconnect, handleReconnect,
   getPublicState, getFinalRanking, getTimerRemaining,
+  // new helpers
+  addBot, takeCardByPlayerId, refuseCardByPlayerId,
   MIN_PLAYERS, MAX_PLAYERS,
 } = require('./gameLogic.cjs')
 
@@ -43,6 +45,8 @@ function generateRoomCode() {
 /** Diffuse l'état à TOUS (joueurs + spectateurs) dans la room Socket.IO. */
 function broadcastState(room) {
   io.to(room.code).emit('game:state', getPublicState(room))
+  // Let server schedule bot moves if the new state requires it
+  try { scheduleBotIfNeeded(room) } catch (e) {}
 }
 
 function sendError(socket, code, message) {
@@ -98,19 +102,58 @@ function stopRoomTimer(roomCode) {
 
 // ─── Nettoyage ─────────────────────────────────────────────────────────────────
 function cleanupOldRooms() {
-  const TEN_MIN = 10 * 60 * 1000
+  const THIRTY_MIN = 30 * 60 * 1000
   const now = Date.now()
   for (const [code, room] of rooms) {
     const isEmpty = room.players.filter(p => p.connected).length === 0
-    const isOld   = (now - room.createdAt) > TEN_MIN
-    if (isOld || (isEmpty && room.phase !== 'lobby')) {
+    const last = room.lastActivity || room.createdAt || 0
+    const isOld   = (now - last) > THIRTY_MIN
+    // Only delete rooms that have been inactive for at least 30 minutes
+    if (isOld) {
       stopRoomTimer(code)
       rooms.delete(code)
-      console.log(`[cleanup] Room ${code} supprimée`)
+      console.log(`[cleanup] Room ${code} supprimée (inactivité)`)
     }
   }
 }
 setInterval(cleanupOldRooms, 5 * 60 * 1000)
+
+/** Helper: schedule a bot action if the current player is a bot. */
+function scheduleBotIfNeeded(room) {
+  if (!room || room.phase !== 'playing') return
+  const player = room.players[room.currentPlayerIndex]
+  if (!player || !player.isBot) return
+  if (room._botTimer) clearTimeout(room._botTimer)
+  room._botTimer = setTimeout(() => {
+    // Simple heuristic copied from client AI
+    const card = room.currentCard
+    const tokens = room.tokensOnCard
+    const netCost = card - tokens
+    const playerObj = room.players[room.currentPlayerIndex]
+    const extendsSequence = playerObj.cards.includes(card - 1) || playerObj.cards.includes(card + 1)
+    const shouldTake = playerObj.tokens === 0 || netCost <= 5 || (extendsSequence && netCost <= 15) || card <= 10
+    if (shouldTake) {
+      const r = takeCardByPlayerId(room, playerObj.id)
+      if (r.ok) {
+        console.log(`[bot] ${playerObj.name} prend ${r.action?.card} dans ${room.code}`)
+        broadcastState(room)
+        if (room.phase === 'finished') io.to(room.code).emit('game:finished', { ranking: getFinalRanking(room) })
+        else if (room.timerEnabled) startRoomTimer(room)
+      }
+    } else {
+      const r = refuseCardByPlayerId(room, playerObj.id)
+      if (r.ok) {
+        console.log(`[bot] ${playerObj.name} refuse dans ${room.code}`)
+        broadcastState(room)
+        if (room.timerEnabled) startRoomTimer(room)
+      }
+    }
+    clearTimeout(room._botTimer)
+    room._botTimer = null
+    // If next player is also a bot, schedule again
+    scheduleBotIfNeeded(room)
+  }, 900)
+}
 
 // ─── Connexions Socket.IO ──────────────────────────────────────────────────────
 io.on('connection', (socket) => {
@@ -141,6 +184,22 @@ io.on('connection', (socket) => {
     if (!result.ok) return sendError(socket, result.error, 'Impossible de configurer')
     // Diffuser les nouvelles options à tous (notamment les spectateurs)
     broadcastState(room)
+    scheduleBotIfNeeded(room)
+  })
+
+  // ── AJOUTER UN BOT (hôte seulement) ──────────────────────────────────────
+  socket.on('room:addBot', ({ name } = {}) => {
+    const meta = socketToRoom.get(socket.id)
+    if (!meta || meta.isSpectator) return sendError(socket, 'not_allowed', 'Action non autorisée')
+    const room = rooms.get(meta.roomCode)
+    if (!room) return sendError(socket, 'room_not_found', 'Partie introuvable')
+    // Only host may add bots from the lobby
+    if (room.phase !== 'lobby' && room.phase !== 'paused') return sendError(socket, 'wrong_phase', 'Ajouter un bot uniquement en lobby ou pause')
+    const r = addBot(room, name)
+    if (!r.ok) return sendError(socket, r.error, 'Impossible d\'ajouter un bot')
+    console.log(`[bot] ${meta.roomCode} — bot ajouté: ${name || 'Bot'}`)
+    broadcastState(room)
+    scheduleBotIfNeeded(room)
   })
 
   // ── REJOINDRE UNE PARTIE (joueur) ────────────────────────────────────────────
@@ -174,6 +233,7 @@ io.on('connection', (socket) => {
     socket.emit('room:joined', { roomCode: code, isHost: false, state: getPublicState(room) })
     socket.to(code).emit('game:notification', { type: 'join', message: `${playerName.trim()} a rejoint` })
     broadcastState(room)
+    scheduleBotIfNeeded(room)
   })
 
   // ── REJOINDRE EN SPECTATEUR ─────────────────────────────────────────────────
@@ -214,6 +274,7 @@ io.on('connection', (socket) => {
     }
     console.log(`[room:start] ${meta.roomCode} — ${room.players.length} joueurs, timer: ${room.timerEnabled ? room.timerDuration+'s' : 'off'}`)
     broadcastState(room)
+    scheduleBotIfNeeded(room)
     // Démarrer le timer serveur si activé
     if (room.timerEnabled) startRoomTimer(room)
   })
@@ -231,6 +292,7 @@ io.on('connection', (socket) => {
     }
     console.log(`[game:take] ${meta.playerName} prend ${result.action.card} dans ${meta.roomCode}`)
     broadcastState(room)
+    scheduleBotIfNeeded(room)
     if (room.phase === 'finished') {
       stopRoomTimer(meta.roomCode)
       io.to(room.code).emit('game:finished', { ranking: getFinalRanking(room) })
@@ -253,6 +315,7 @@ io.on('connection', (socket) => {
     }
     console.log(`[game:refuse] ${meta.playerName} refuse dans ${meta.roomCode}`)
     broadcastState(room)
+    scheduleBotIfNeeded(room)
     if (room.timerEnabled) startRoomTimer(room)
   })
 
@@ -274,12 +337,14 @@ io.on('connection', (socket) => {
     io.to(meta.roomCode).emit('game:notification', { type: 'disconnect', message: `${meta.playerName} s'est déconnecté` })
 
     if (result.isEmpty) {
+      // Do NOT delete empty rooms immediately. mark lastActivity and stop timers.
       stopRoomTimer(meta.roomCode)
-      rooms.delete(meta.roomCode)
-      console.log(`[cleanup] Room ${meta.roomCode} vide`)
+      room.lastActivity = Date.now()
+      console.log(`[info] Room ${meta.roomCode} is empty — preserved for reconnects`) 
       return
     }
     broadcastState(room)
+    scheduleBotIfNeeded(room)
     if (result.isHost) {
       const newHost = room.players.find(p => p.socketId === result.newHostId)
       io.to(meta.roomCode).emit('game:notification', { type: 'new_host', message: `Nouvel hôte : ${newHost?.name}` })

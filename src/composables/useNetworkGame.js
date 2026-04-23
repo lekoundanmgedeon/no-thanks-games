@@ -42,8 +42,8 @@ export function useNetworkGame() {
       const prevCard = gameState.value?.currentCard
       gameState.value = state
       if (state.currentCard !== prevCard) cardAnimKey.value++
-      if (state.phase === 'playing')  phase.value = 'playing'
-      if (state.phase === 'finished') phase.value = 'finished'
+      // Accept known phases and passthrough unknown ones (e.g. 'paused')
+      if (typeof state.phase === 'string') phase.value = state.phase
       // Synchroniser les options de timer
       if (typeof state.timerEnabled  === 'boolean') timerEnabled.value  = state.timerEnabled
       if (typeof state.timerDuration === 'number')  timerDuration.value = state.timerDuration
@@ -124,6 +124,8 @@ export function useNetworkGame() {
     getSocket().emit('room:options', options)
   }
 
+  function addBot(name) { getSocket().emit('room:addBot', { name }) }
+
   function startGame()     { getSocket().emit('room:start') }
   function prendreCarte()  { getSocket().emit('game:take') }
   function refuserCarte()  { getSocket().emit('game:refuse') }
@@ -198,7 +200,7 @@ export function useNetworkGame() {
     timerProgress,
     timerUrgency,
     // Actions
-    createRoom, joinRoom, spectateRoom, setOptions,
+    createRoom, joinRoom, spectateRoom, setOptions, addBot,
     startGame, prendreCarte, refuserCarte, leaveRoom,
   }
 }

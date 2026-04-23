@@ -54,6 +54,10 @@ function createRoom(roomCode, hostSocketId) {
     currentPlayerIndex: 0,
     lastAction:         null,
     removedCards:       [],
+    // housekeeping
+    createdAt:          Date.now(),
+    lastActivity:       Date.now(),
+    disconnectedPlayers: [],
     // ── Options de partie ──
     timerEnabled:       false,   // timer activé ?
     timerDuration:      30,      // secondes par tour
@@ -76,6 +80,7 @@ function addPlayer(room, socketId, name) {
     name: name.trim() || `Joueur ${room.players.length + 1}`,
     cards: [], tokens: 0, connected: true,
   })
+  room.lastActivity = Date.now()
   return { ok: true }
 }
 
@@ -108,6 +113,7 @@ function startGame(room, requestingSocketId) {
   room.phase              = 'playing'
   room.startedAt          = Date.now()
   _resetTurnTimer(room)
+  room.lastActivity = Date.now()
   return { ok: true }
 }
 
@@ -129,6 +135,7 @@ function takeCard(room, socketId) {
     _nextPlayer(room)
     _resetTurnTimer(room)
   }
+  room.lastActivity = Date.now()
   return { ok: true, action }
 }
 
@@ -147,6 +154,7 @@ function refuseCard(room, socketId) {
   }
   _nextPlayer(room)
   _resetTurnTimer(room)
+  room.lastActivity = Date.now()
   return { ok: true }
 }
 
@@ -163,6 +171,7 @@ function _nextCard(room) {
   if (room.deck.length === 0) {
     room.currentCard = null; room.tokensOnCard = 0
     room.phase = 'finished'; room.finishedAt = Date.now()
+    room.lastActivity = Date.now()
   } else {
     room.currentCard = room.deck.shift(); room.tokensOnCard = 0
   }
@@ -194,11 +203,16 @@ function handleDisconnect(room, socketId) {
     room.players.splice(idx, 1)
     if (room.host === socketId && room.players.length > 0) room.host = room.players[0].socketId
   } else {
+    // Mark player disconnected and pause the game so they can reconnect
     room.players[idx].connected = false
-    if (room.currentPlayerIndex === idx && room.phase === 'playing') {
-      _nextPlayer(room); _resetTurnTimer(room)
+    if (!Array.isArray(room.disconnectedPlayers)) room.disconnectedPlayers = []
+    if (!room.disconnectedPlayers.includes(room.players[idx].id)) room.disconnectedPlayers.push(room.players[idx].id)
+    if (room.phase === 'playing') {
+      room.phase = 'paused'
+      _resetTurnTimer(room)
     }
   }
+  room.lastActivity = Date.now()
   return {
     removed: true,
     isEmpty: room.players.filter(p => p.connected).length === 0,
@@ -211,7 +225,54 @@ function handleReconnect(room, oldSocketId, newSocketId) {
   const player = room.players.find(p => p.socketId === oldSocketId)
   if (!player) return { ok: false }
   player.socketId = newSocketId; player.connected = true
+  // remove from disconnected list
+  if (Array.isArray(room.disconnectedPlayers)) {
+    const i = room.disconnectedPlayers.indexOf(player.id)
+    if (i !== -1) room.disconnectedPlayers.splice(i, 1)
+  }
+  // resume if nobody else is disconnected
+  if (room.phase === 'paused' && (!room.disconnectedPlayers || room.disconnectedPlayers.length === 0)) {
+    room.phase = 'playing'
+    _resetTurnTimer(room)
+  }
+  room.lastActivity = Date.now()
   return { ok: true, player }
+}
+
+function addBot(room, name) {
+  const botCount = room.players.filter(p => p.isBot).length
+  if (botCount >= 4) return { ok: false, error: 'bots_full' }
+  if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'room_full' }
+  const id = room.players.length
+  room.players.push({ socketId: null, id, name: name ? String(name).trim() : `Bot ${id+1}`, cards: [], tokens: 0, connected: true, isBot: true })
+  room.lastActivity = Date.now()
+  return { ok: true }
+}
+
+function takeCardByPlayerId(room, playerId) {
+  const player = room.players[room.currentPlayerIndex]
+  if (!player || player.id !== playerId) return { ok: false, error: 'not_your_turn' }
+  player.cards.push(room.currentCard)
+  player.tokens += room.tokensOnCard
+  const action = { type: 'take', playerName: player.name, playerId: player.id, card: room.currentCard, tokens: room.tokensOnCard }
+  room.lastAction = action
+  _nextCard(room)
+  if (room.phase === 'playing') { _nextPlayer(room); _resetTurnTimer(room) }
+  room.lastActivity = Date.now()
+  return { ok: true, action }
+}
+
+function refuseCardByPlayerId(room, playerId) {
+  const player = room.players[room.currentPlayerIndex]
+  if (!player || player.id !== playerId) return { ok: false, error: 'not_your_turn' }
+  if (player.tokens <= 0) return { ok: false, error: 'no_tokens' }
+  player.tokens--
+  room.tokensOnCard++
+  room.lastAction = { type: 'refuse', playerName: player.name, playerId: player.id, card: room.currentCard }
+  _nextPlayer(room)
+  _resetTurnTimer(room)
+  room.lastActivity = Date.now()
+  return { ok: true }
 }
 
 function getPublicState(room) {
@@ -224,6 +285,7 @@ function getPublicState(room) {
     players: room.players.map(p => ({
       id: p.id, name: p.name, cards: p.cards, tokens: p.tokens,
       connected: p.connected,
+      isBot: p.isBot || false,
       score:     calcScore(p.cards, p.tokens),
       sequences: getSequences(p.cards),
       isCurrentPlayer: p.id === room.players[room.currentPlayerIndex]?.id,
@@ -251,6 +313,8 @@ module.exports = {
   createRoom, addPlayer, setRoomOptions, startGame,
   takeCard, refuseCard,
   handleDisconnect, handleReconnect,
+  // bots
+  addBot, takeCardByPlayerId, refuseCardByPlayerId,
   getPublicState, getFinalRanking, getTimerRemaining,
   calcScore, getSequences,
   MIN_PLAYERS, MAX_PLAYERS,

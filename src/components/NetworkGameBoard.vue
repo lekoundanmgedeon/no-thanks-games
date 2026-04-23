@@ -245,6 +245,20 @@
       </aside>
 
     </main>
+
+      <!-- Paused overlay -->
+      <div v-if="phase === 'paused'" class="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div class="panel-gold p-6 max-w-md w-full text-center backdrop-blur-md" style="background: rgba(10,8,6,0.8);">
+          <p class="font-display text-xl text-gold">Partie en pause</p>
+          <p class="text-felt-light mt-2 text-sm">En attente de la reconnexion des joueurs :</p>
+          <ul class="mt-3 text-left list-disc list-inside text-felt-light">
+            <li v-for="p in players.filter(x => !x.connected)" :key="p.id">{{ p.name }}</li>
+          </ul>
+          <div class="mt-4">
+            <button class="btn-take px-6" @click="$emit('leave')">Quitter la partie</button>
+          </div>
+        </div>
+      </div>
   </div>
 </template>
 
@@ -255,6 +269,8 @@ import { useI18n } from '../composables/useI18n.js'
 const { t } = useI18n()
 
 defineProps({
+  // Room phase (e.g., 'lobby' | 'playing' | 'paused' | 'finished')
+  phase:              { type: String, default: 'playing' },
   // Identité
   myPlayerName:       { type: String,  default: '' },
   roomCode:           { type: String,  default: '' },
